@@ -4,114 +4,69 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
-import numpy as np
-
-from math import ceil
-from torchvision import datasets, transforms
-
+import matplotlib.pyplot as plt
+import fmnist
 from optimizers.DANE import DANE
-from partitioner import partition_dataset
+from optimizers.OneShotGradientAvg import OneShotGradientAvg
+from utils import consensus_train, evaluate
 
 
-def prepare_data():
-    BATCH_SIZE = 10000
+def train_dane(rank, train_loader, test_loader):
 
-    full_ds = datasets.MNIST(
-        './data', train=True, download=True,
-        transform=transforms.Compose([
-            transforms.ToTensor(),
-        ])
-    )
-
-    val_len = ceil(len(full_ds) * 0.15)
-    split = [len(full_ds) - val_len, val_len]
-    train_ds, val_ds = torch.utils.data.random_split(full_ds, split)
-
-    train_loader, _ = partition_dataset(train_ds, BATCH_SIZE)
-    val_loader, _ = partition_dataset(val_ds, BATCH_SIZE)
-
-    test_ds = datasets.MNIST(
-        './data', train=False, download=True,
-        transform=transforms.Compose([
-            transforms.ToTensor(),
-        ])
-    )
-
-    test_loader, bsz = partition_dataset(test_ds, BATCH_SIZE)
-
-    return train_loader, val_loader, test_loader, bsz
-
-
-def evaluate(model, criterion, data_loader):
-
-    avg_accuracy = []
-    avg_loss = []
-
-    model.eval()
-    for data, target in data_loader:
-        output = model(data)
-
-        _, pred = torch.max(output, dim=1)
-        avg_accuracy.append(torch.sum(pred == target).item() / len(pred))
-
-        loss = criterion(output, target)
-        avg_loss.append(loss.item())
-
-    return np.mean(avg_loss), np.mean(avg_accuracy)
-
-
-def run(rank, size):
-    torch.manual_seed(1234)
-
-    train_loader, val_loader, test_loader, bsz = prepare_data()
-
-    model = nn.Sequential(
-        nn.Flatten(start_dim=1),
-        nn.Linear(784, 256),
-        nn.ReLU(),
-        nn.Linear(256, 10),
-        nn.LogSoftmax(dim=1),
-    )
-
+    model = fmnist.FashionMNISTNet()
     criterion = nn.NLLLoss()
 
-    optimizer = DANE(
-            model.parameters(),
-            local_opt=optim.SGD,
-            lr=1,
-            mu=0
-            )
+    opt = optim.Adam(model.parameters(), lr=3e-4)
+    dane = DANE(model.parameters(), opt, lr=1, mu=1e-4)
 
-    num_batches = ceil(len(train_loader.dataset) / float(bsz))
-
-    for epoch in range(10):
-
-        model.train()
-
-        def closure():
-            loss = None
-            for data, target in train_loader:
-                output = model(data)
-                if loss is None:
-                    loss = criterion(output, target)
-                else:
-                    loss += criterion(output, target)
-            loss /= num_batches
-            return loss
-
-        optimizer.step(closure)
-
-        eval_loss, eval_acc = evaluate(model, criterion, val_loader)
-
-        print('[{}]: Epoch {} :: Loss = {}, Accuracy = {}'.format(
-            rank, epoch, eval_loss, eval_acc
-        ))
+    train_hist = consensus_train(model, criterion, dane, train_loader)
 
     test_loss, test_acc = evaluate(model, criterion, test_loader)
-
     print('[{}] Finally :: Loss = {}, Accuracy = {}'.format(
         rank, test_loss, test_acc
     ))
+
+    return train_hist
+
+
+def train_oneshot(rank, train_loader, test_loader):
+
+    model = fmnist.FashionMNISTNet()
+    criterion = nn.NLLLoss()
+
+    opt = optim.Adam(model.parameters(), lr=3e-4)
+    dane = OneShotGradientAvg(model.parameters(), opt)
+
+    train_hist = consensus_train(model, criterion, dane, train_loader)
+
+    test_loss, test_acc = evaluate(model, criterion, test_loader)
+    print('[{}] Finally :: Loss = {}, Accuracy = {}'.format(
+        rank, test_loss, test_acc
+    ))
+
+    return train_hist
+
+
+def run(rank, size):
+
+    torch.manual_seed(1234)
+    train_loader, test_loader = fmnist.load()
+
+    dane_hist = train_dane(rank, train_loader, test_loader)
+    avg_hist = train_oneshot(rank, train_loader, test_loader)
+
+    if rank == 0:
+        _, ax = plt.subplots(1, 2, figsize=(16, 6))
+
+        ax[0].plot(dane_hist['loss'], label='DANE')
+        ax[0].plot(avg_hist['loss'], label='one shot averaging')
+        ax[0].legend()
+
+        ax[1].plot(dane_hist['acc'], label='DANE')
+        ax[1].plot(avg_hist['acc'], label='one shot averaging')
+        ax[1].legend()
+
+        plt.show()
 
 
 def init_process(rank, size, fn, backend='gloo'):
