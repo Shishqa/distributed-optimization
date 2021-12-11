@@ -1,18 +1,15 @@
 import torch
-import torch.distributed as dist
+from .DistributedOptimizer import DistributedOptimizer
 
 
-class DANE(torch.optim.Optimizer):
+class DANE(DistributedOptimizer):
 
     def __init__(self, params, local_opt, local_n_epochs=10, lr=1, mu=0.5):
 
-        self.world_size = dist.get_world_size()
-        self.rank = dist.get_rank()
-        self.local_opt = local_opt
         self.local_n_epochs = local_n_epochs
 
         defaults = dict(lr=lr, mu=mu)
-        super(DANE, self).__init__(params, defaults)
+        super(DANE, self).__init__(params, local_opt, defaults)
 
         self.reduce_params()
 
@@ -33,12 +30,6 @@ class DANE(torch.optim.Optimizer):
         #    w(t) = 1/m sum{ w_i(t) }
         self.reduce_params()
 
-    def sync_tensor(self, local):
-        dist.reduce(local, dst=0, op=dist.ReduceOp.SUM)
-        if self.rank == 0:
-            local /= self.world_size
-        dist.broadcast(local, src=0)
-
     def reduce_grads(self):
         for group in self.param_groups:
             for p in group['params']:
@@ -51,14 +42,14 @@ class DANE(torch.optim.Optimizer):
                 # save df(p(t-1))
                 p_state['local_grad'] = p.grad.data.detach().clone()
 
-                self.sync_tensor(p.grad.data)
+                self.avg(p.grad.data)
 
                 p_state['global_grad'] = p.grad.data.detach().clone()
 
     def reduce_params(self):
         for group in self.param_groups:
             for p in group['params']:
-                self.sync_tensor(p.data)
+                self.avg(p.data)
 
                 p_state = self.state[p]
                 p_state['global_p'] = p.data.detach().clone()
@@ -99,4 +90,4 @@ class DANE(torch.optim.Optimizer):
             loss.backward()
             self.local_opt.step()
 
-            print('{}: epoch {} loss {}'.format(self.rank, e, loss.item()))
+#            print('{}: epoch {} loss {}'.format(self.rank, e, loss.item()))

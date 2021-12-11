@@ -25,17 +25,17 @@ in solving the problem of logistic regression on
 
 ## TODOs
 
-- [ ] Implement the framework
+- [x] Implement the framework
   - [ ] Optimization problem abstraction
     - [ ] Binary logistic regression
     - [ ] Multiclass logistic regression
-  - [ ] Optimizer abstractions
-    - [ ] Centralized: master-slave
-    - [ ] Decentralized: workers
-- [ ] Implement algorithms
-  - [ ] Naive algorithms
-  - [ ] ADMM
-  - [ ] DANE
+    - [x] We actually have taken [PyTorch](https://pytorch.org/)
+  - [x] Optimizer abstractions
+    - [x] Centralized: master-slave
+- [x] Implement algorithms
+  - [x] Naive algorithms
+  - [x] ADMM
+  - [x] DANE
   - [ ] Network-DANE
   - [ ] Network-SARAH
 - [ ] Prepare a report

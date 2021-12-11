@@ -1,10 +1,11 @@
 import torch
+import torch.distributed as dist
 import numpy as np
 
 
 def evaluate(model, loss_func, data_loader):
 
-    #device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    # device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     device = 'cpu'
 
     with torch.no_grad():
@@ -30,12 +31,12 @@ def evaluate(model, loss_func, data_loader):
 def consensus_train(model, loss_func, opt, train_loader,
                     n_epochs=10, verbose=True):
 
-    #device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    # device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     device = 'cpu'
 
     train_history = {
-        'acc' : [],
-        'loss' : []
+        'acc': [],
+        'loss': []
     }
 
     for epoch in range(n_epochs):
@@ -54,12 +55,22 @@ def consensus_train(model, loss_func, opt, train_loader,
 
         eval_loss, eval_acc = evaluate(model, loss_func, train_loader)
 
-        if verbose:
-            print('Epoch {} ::\tLoss = {},\tAccuracy = {}'.format(
-                epoch+1, eval_loss, eval_acc
-            ))
+        eval_loss = torch.tensor(eval_loss)
+        dist.all_reduce(eval_loss, op=dist.ReduceOp.SUM)
+        eval_loss /= dist.get_world_size()
 
-        train_history['acc'].append(eval_acc)
-        train_history['loss'].append(eval_loss)
+        eval_acc = torch.tensor(eval_acc)
+        dist.all_reduce(eval_acc, op=dist.ReduceOp.SUM)
+        eval_acc /= dist.get_world_size()
+
+        if dist.get_rank() == 0:
+
+            if verbose:
+                print('Epoch {} ::\tLoss = {},\tAccuracy = {}'.format(
+                    epoch+1, eval_loss.item(), eval_acc.item()
+                ))
+
+            train_history['acc'].append(eval_acc.item())
+            train_history['loss'].append(eval_loss.item())
 
     return train_history
