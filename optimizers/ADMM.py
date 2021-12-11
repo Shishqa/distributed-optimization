@@ -1,6 +1,7 @@
 import torch
 import torch.distributed as dist
 
+
 class ADMM(torch.optim.Optimizer):
     def __init__(self, params, local_opt, lr=1, rho=0.1):
         self.world_size = dist.get_world_size()
@@ -51,7 +52,7 @@ class ADMM(torch.optim.Optimizer):
 
         params_avg = params.copy()
         self.avg_params(params_avg)
-        
+
         for x in params:
             state = self.state[x]
 
@@ -61,13 +62,24 @@ class ADMM(torch.optim.Optimizer):
             loss = closure()
 
             with torch.enable_grad():  # Ensure gradients are being computed
-                loss += (rho / 2) * torch.linalg.norm(x.data + xbar + u)  # Yay, we've computed the function
+                # Yay, we've computed the function
+                loss += (rho / 2) * torch.linalg.norm(x + xbar + u)
 
     def local_optimize(self, params, opt, closure, rho, lr):
         """
         Runs local optimization iterations
         """
+        local_opt = opt(params, lr=0.1)
+        for e in range(10):
+            loss = closure()
 
+            for p in params:
+                if p.grad is None:
+                    continue
+
+                state = self.state[p]
+
+                
         pass
 
     def avg(self, tensor):
