@@ -14,8 +14,8 @@ class ADMM(torch.optim.Optimizer):
 
         super(ADMM, self).__init__(params, defaults)
 
-        for group in self.param_groups:
-            self.reduce_params(group['params'])
+        # for group in self.param_groups:
+        #     self.reduce_params(group['params'])
 
     def step(self, closure):
         for group in self.param_groups:
@@ -35,10 +35,14 @@ class ADMM(torch.optim.Optimizer):
     def find_avg_parameter(self, params):
         for p in params:
             state = self.state[p]
+
+            if 'u' not in state:
+                state['u'] = 0
+
             if 'xbar' not in state:
                 state['xbar'] = torch.zeros_like(p.data)
 
-            avg = p.detach().copy()
+            avg = torch.clone(p.detach())
             self.avg(avg)
             state['xbar'] = avg
 
@@ -75,11 +79,9 @@ class ADMM(torch.optim.Optimizer):
         """
         Runs local optimization iterations
         """
-        local_opt = opt(params, lr=0.1)
+        local_opt = opt(params, lr=0.35)
         for e in range(10):
             loss = closure()
-            self.zero_grad()
-            loss.backward()
 
             for p in params:
                 if p.grad is None:
