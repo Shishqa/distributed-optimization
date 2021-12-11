@@ -18,30 +18,27 @@ class ADMM(torch.optim.Optimizer):
             self.reduce_params(group['params'])
 
     def step(self, closure):
-        if closure is not None:
-            loss = closure()
-
         for group in self.param_groups:
             rho = group['rho']
             lr = group['lr']
             opt = group['local_opt']
             params = group['params']
+
+            loss = closure()
+            self.zero_grad()
+            loss.backward()
+
             self.find_avg_parameter(params)
             self.local_optimize(params, opt, closure, rho, lr)
-            pass
-
-        pass
+            self.update_u(params)
 
     def find_avg_parameter(self, params):
         for p in params:
             state = self.state[p]
-            if 'u' not in state:
-                state['u'] = torch.zeros_like(p.data)
-
             if 'xbar' not in state:
                 state['xbar'] = torch.zeros_like(p.data)
 
-            avg = p.data.copy()
+            avg = p.detach().copy()
             self.avg(avg)
             state['xbar'] = avg
 
@@ -65,6 +62,15 @@ class ADMM(torch.optim.Optimizer):
                 # Yay, we've computed the function
                 loss += (rho / 2) * torch.linalg.norm(x + xbar + u)
 
+    def update_u(self, params):
+        for p in params:
+            state = self.state[p]
+            if 'u' not in state:
+                state['u'] = torch.zeros_like(p)
+
+            state = self.state[p]
+            state['u'] = state['u'] + p - state['xbar']
+
     def local_optimize(self, params, opt, closure, rho, lr):
         """
         Runs local optimization iterations
@@ -72,6 +78,8 @@ class ADMM(torch.optim.Optimizer):
         local_opt = opt(params, lr=0.1)
         for e in range(10):
             loss = closure()
+            self.zero_grad()
+            loss.backward()
 
             for p in params:
                 if p.grad is None:
@@ -79,8 +87,15 @@ class ADMM(torch.optim.Optimizer):
 
                 state = self.state[p]
 
-                
-        pass
+                u = state['u']
+                xbar = state['xbar']
+
+                with torch.enable_grad():
+                    loss += (rho / 2) * torch.linalg.norm(p + xbar + u)
+
+            local_opt.zero_grad()
+            loss.backward()
+            local_opt.step()
 
     def avg(self, tensor):
         dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
