@@ -1,6 +1,8 @@
 <h1 align="center">Communication-efficient distributed optimization
 </h1>
 
+![](./docs/img/distributed.jpg)
+
 With the growing number of distributed computations, the need for optimal
 distributed algorithms has increased. The benefit from distributed computations
 is clear, as we multiply the computing powers, thus reducing the computation
@@ -20,27 +22,32 @@ convex optimization algorithms:
 - Network-SARAH (decentralized),
 - etc
 
-in solving the problem of logistic regression on
+in solving the problem of multi-label classification on
 [fashion MNIST](https://github.com/zalandoresearch/fashion-mnist).
 
-## TODOs
+## The results
 
-- [x] Implement the framework
-  - [ ] Optimization problem abstraction
-    - [ ] Binary logistic regression
-    - [ ] Multiclass logistic regression
-    - [x] We actually have taken [PyTorch](https://pytorch.org/)
-  - [x] Optimizer abstractions
-    - [x] Centralized: master-slave
-- [x] Implement algorithms
-  - [x] Naive algorithms
-  - [x] ADMM
-  - [x] DANE
-  - [ ] Network-DANE
-  - [ ] Network-SARAH
-- [ ] Prepare a report
+You can read the detailed report in [docs/report.pdf](./docs/report.pdf)
 
-### Changelog
+## Running benchmark
+
+To run the benchmark:
+
+1. Create a virtual environment:
+```bash
+virtualenv .venv
+source .venv/bin/activate
+```
+
+2. Install requirements using pip
+```bash
+pip3 install -r requirements.txt
+```
+
+3. Run the main script
+```bash
+python3 main.py
+```
 
 ## Contributors
 
