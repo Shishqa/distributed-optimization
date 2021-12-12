@@ -28,6 +28,34 @@ def evaluate(model, loss_func, data_loader):
         return np.mean(val_loss), np.mean(val_accuracy)
 
 
+def collect_metrics(epoch, history, model, loss_func, opt, data_loader,
+                    verbose=True):
+
+    eval_loss, eval_acc = evaluate(model, loss_func, data_loader)
+
+    eval_loss = torch.tensor(eval_loss)
+    dist.all_reduce(eval_loss, op=dist.ReduceOp.SUM)
+    eval_loss /= dist.get_world_size()
+
+    eval_acc = torch.tensor(eval_acc)
+    dist.all_reduce(eval_acc, op=dist.ReduceOp.SUM)
+    eval_acc /= dist.get_world_size()
+
+    data_transferred = torch.tensor([opt.data_transferred])
+    dist.all_reduce(data_transferred, op=dist.ReduceOp.SUM)
+
+    if dist.get_rank() == 0:
+
+        if verbose:
+            print('Epoch {} ::\tLoss = {},\tAccuracy = {},\tTransferred {}MB'.format(
+                epoch, eval_loss.item(), eval_acc.item(), data_transferred.item() / (2 ** 20)
+            ))
+
+        history['acc'].append(eval_acc.item())
+        history['loss'].append(eval_loss.item())
+        history['interconnect'].append(data_transferred.item())
+
+
 def consensus_train(model, loss_func, opt, train_loader,
                     n_epochs=10, verbose=True):
 
@@ -36,8 +64,11 @@ def consensus_train(model, loss_func, opt, train_loader,
 
     train_history = {
         'acc': [],
-        'loss': []
+        'loss': [],
+        'interconnect': []
     }
+    collect_metrics(0, train_history, model, loss_func, opt,
+                    train_loader, verbose=verbose)
 
     for epoch in range(n_epochs):
 
@@ -53,24 +84,7 @@ def consensus_train(model, loss_func, opt, train_loader,
             # Consensus optimization
             opt.step(local_objective)
 
-        eval_loss, eval_acc = evaluate(model, loss_func, train_loader)
-
-        eval_loss = torch.tensor(eval_loss)
-        dist.all_reduce(eval_loss, op=dist.ReduceOp.SUM)
-        eval_loss /= dist.get_world_size()
-
-        eval_acc = torch.tensor(eval_acc)
-        dist.all_reduce(eval_acc, op=dist.ReduceOp.SUM)
-        eval_acc /= dist.get_world_size()
-
-        if dist.get_rank() == 0:
-
-            if verbose:
-                print('Epoch {} ::\tLoss = {},\tAccuracy = {}'.format(
-                    epoch+1, eval_loss.item(), eval_acc.item()
-                ))
-
-            train_history['acc'].append(eval_acc.item())
-            train_history['loss'].append(eval_loss.item())
+        collect_metrics(epoch + 1, train_history, model, loss_func, opt,
+                        train_loader, verbose=verbose)
 
     return train_history

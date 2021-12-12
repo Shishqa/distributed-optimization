@@ -7,9 +7,10 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 import numpy as np
 import fmnist
+
 from optimizers.DANE import DANE
 from optimizers.ADMM import ADMM
-from optimizers.OneShotGradientAvg import OneShotGradientAvg
+from optimizers.GradientAvg import GradientAvg
 from utils import consensus_train, evaluate
 
 
@@ -25,8 +26,9 @@ def train_dane(rank, train_loader, test_loader):
 
     train_hist = consensus_train(model, criterion, dane, train_loader)
 
-    test_loss, test_acc = evaluate(model, criterion, test_loader)
-    print('Finally :: Loss = {}, Accuracy = {}'.format(test_loss, test_acc))
+    if rank == 0:
+        test_loss, test_acc = evaluate(model, criterion, test_loader)
+        print('Finally ::\tLoss = {},\tAccuracy = {}'.format(test_loss, test_acc))
 
     return train_hist
 
@@ -43,8 +45,9 @@ def train_admm(rank, train_loader, test_loader):
 
     train_hist = consensus_train(model, criterion, admm, train_loader)
 
-    test_loss, test_acc = evaluate(model, criterion, test_loader)
-    print('Finally :: Loss = {}, Accuracy = {}'.format(test_loss, test_acc))
+    if rank == 0:
+        test_loss, test_acc = evaluate(model, criterion, test_loader)
+        print('Finally ::\tLoss = {},\tAccuracy = {}'.format(test_loss, test_acc))
 
     return train_hist
 
@@ -57,12 +60,13 @@ def train_oneshot(rank, train_loader, test_loader):
     criterion = nn.NLLLoss()
 
     opt = optim.Adam(model.parameters(), lr=3e-4)
-    avg = OneShotGradientAvg(model.parameters(), opt)
+    avg = GradientAvg(model.parameters(), opt)
 
     train_hist = consensus_train(model, criterion, avg, train_loader)
 
-    test_loss, test_acc = evaluate(model, criterion, test_loader)
-    print('Finally :: Loss = {}, Accuracy = {}'.format(test_loss, test_acc))
+    if rank == 0:
+        test_loss, test_acc = evaluate(model, criterion, test_loader)
+        print('Finally ::\tLoss = {},\tAccuracy = {}'.format(test_loss, test_acc))
 
     return train_hist
 
@@ -72,16 +76,16 @@ def run(rank):
     torch.manual_seed(1234)
     train_loader, test_loader = fmnist.load()
 
+    avg_hist = train_oneshot(rank, train_loader, test_loader)
     admm_hist = train_admm(rank, train_loader, test_loader)
     dane_hist = train_dane(rank, train_loader, test_loader)
-    avg_hist = train_oneshot(rank, train_loader, test_loader)
 
     if rank == 0:
-        fig, ax = plt.subplots(1, 2, figsize=(16, 6))
+        fig, ax = plt.subplots(1, 3, figsize=(18, 6))
 
         ax[0].plot(dane_hist['loss'], label='DANE')
         ax[0].plot(admm_hist['loss'], label='ADMM')
-        ax[0].plot(avg_hist['loss'], label='one shot averaging')
+        ax[0].plot(avg_hist['loss'], label='gradient averaging')
         ax[0].set_xticks(np.arange(1, 10))
         ax[0].set_yscale('log')
         ax[0].set_xlabel('epoch')
@@ -91,12 +95,21 @@ def run(rank):
 
         ax[1].plot(dane_hist['acc'], label='DANE')
         ax[1].plot(admm_hist['acc'], label='ADMM')
-        ax[1].plot(avg_hist['acc'], label='one shot averaging')
+        ax[1].plot(avg_hist['acc'], label='gradient averaging')
         ax[1].set_xticks(np.arange(1, 10))
         ax[1].set_xlabel('epoch')
         ax[1].set_ylabel('accuracy')
         ax[1].set_title('Accuracy')
         ax[1].legend()
+
+        ax[2].plot(dane_hist['interconnect'], label='DANE')
+        ax[2].plot(admm_hist['interconnect'], label='ADMM')
+        ax[2].plot(avg_hist['interconnect'], label='gradient averaging')
+        ax[2].set_xticks(np.arange(1, 10))
+        ax[2].set_xlabel('epoch')
+        ax[2].set_ylabel('data transferred, bytes')
+        ax[2].set_title('Interconnect')
+        ax[2].legend()
 
         fig.suptitle('Training History')
         fig.savefig('results.png')

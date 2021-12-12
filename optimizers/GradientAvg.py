@@ -1,11 +1,11 @@
 from .DistributedOptimizer import DistributedOptimizer
 
 
-class OneShotGradientAvg(DistributedOptimizer):
+class GradientAvg(DistributedOptimizer):
 
     def __init__(self, params, local_opt):
         defaults = dict()
-        super(OneShotGradientAvg, self).__init__(params, local_opt, defaults)
+        super(GradientAvg, self).__init__(params, local_opt, defaults)
 
     def step(self, closure):
         loss = closure()

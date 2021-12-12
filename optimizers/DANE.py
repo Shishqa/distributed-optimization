@@ -54,7 +54,9 @@ class DANE(DistributedOptimizer):
                 p_state = self.state[p]
                 p_state['global_p'] = p.data.detach().clone()
 
-    def local_loss(self, loss):
+    def local_loss(self, closure):
+        loss = closure()
+
         for group in self.param_groups:
 
             mu = group['mu']
@@ -82,12 +84,8 @@ class DANE(DistributedOptimizer):
         return loss
 
     def local_optimize(self, closure):
-        for e in range(self.local_n_epochs):
-            loss = closure()
-            loss = self.local_loss(loss)
-
+        for _ in range(self.local_n_epochs):
+            loss = self.local_loss(closure)
             self.zero_grad()
             loss.backward()
             self.local_opt.step()
-
-#            print('{}: epoch {} loss {}'.format(self.rank, e, loss.item()))
