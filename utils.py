@@ -47,9 +47,11 @@ def collect_metrics(epoch, history, model, loss_func, opt, data_loader,
     if dist.get_rank() == 0:
 
         if verbose:
-            print('Epoch {} ::\tLoss = {},\tAccuracy = {},\tTransferred {}MB'.format(
-                epoch, eval_loss.item(), eval_acc.item(), data_transferred.item() / (2 ** 20)
-            ))
+            print(
+                'Epoch {} ::\tLoss = {},\tAccuracy = {},\tTransferred {}MB'
+                .format(epoch, eval_loss.item(), eval_acc.item(),
+                        data_transferred.item() / (2 ** 20))
+            )
 
         history['acc'].append(eval_acc.item())
         history['loss'].append(eval_loss.item())

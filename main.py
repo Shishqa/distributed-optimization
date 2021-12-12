@@ -28,7 +28,9 @@ def train_dane(rank, train_loader, test_loader):
 
     if rank == 0:
         test_loss, test_acc = evaluate(model, criterion, test_loader)
-        print('Finally ::\tLoss = {},\tAccuracy = {}'.format(test_loss, test_acc))
+        print('Finally ::\tLoss = {},\tAccuracy = {}'.format(
+            test_loss, test_acc
+        ))
 
     return train_hist
 
@@ -47,7 +49,9 @@ def train_admm(rank, train_loader, test_loader):
 
     if rank == 0:
         test_loss, test_acc = evaluate(model, criterion, test_loader)
-        print('Finally ::\tLoss = {},\tAccuracy = {}'.format(test_loss, test_acc))
+        print('Finally ::\tLoss = {},\tAccuracy = {}'.format(
+            test_loss, test_acc
+        ))
 
     return train_hist
 
@@ -66,7 +70,9 @@ def train_oneshot(rank, train_loader, test_loader):
 
     if rank == 0:
         test_loss, test_acc = evaluate(model, criterion, test_loader)
-        print('Finally ::\tLoss = {},\tAccuracy = {}'.format(test_loss, test_acc))
+        print('Finally ::\tLoss = {},\tAccuracy = {}'.format(
+            test_loss, test_acc
+        ))
 
     return train_hist
 

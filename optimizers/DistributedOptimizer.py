@@ -30,5 +30,3 @@ class DistributedOptimizer(torch.optim.Optimizer):
         dist.broadcast(input, src=0)
         if self.rank == 0:
             self.data_transferred += input_size * self.world_size
-
-
